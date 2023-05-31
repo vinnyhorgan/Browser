@@ -5,6 +5,8 @@ using System.Net.Http;
 using HtmlAgilityPack;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Numerics;
 
 namespace Browser
 {
@@ -14,7 +16,9 @@ namespace Browser
 
         static Stack<string> history = new Stack<string>();
         static HtmlDocument currentPage = null;
+        static Dictionary<string, Texture2D> images = new Dictionary<string, Texture2D>();
 
+        static Camera2D camera;
         static int y = 0;
 
         static void LoadPage(string url)
@@ -51,6 +55,39 @@ namespace Browser
         {
             if (node.ChildNodes.Count == 0)
             {
+                if (node.Name == "img")
+                {
+                    var src = node.Attributes["src"].Value;
+
+                    if (!src.StartsWith("http://") && !src.StartsWith("https://") && !src.StartsWith("/"))
+                    {
+                        src = history.Peek() + "/" + src;
+                    }
+
+                    if (images.ContainsKey(src))
+                    {
+                        Raylib.DrawTexture(images[src], 0, y, Color.WHITE);
+
+                        y += images[src].height;
+
+                        return;
+                    }
+
+                    var imageTask = RequestImage(src);
+
+                    while (!imageTask.IsCompleted) { }
+
+                    var image = imageTask.Result;
+
+                    var texture = Raylib.LoadTextureFromImage(image.Value);
+
+                    images.Add(src, texture);
+
+                    Raylib.DrawTexture(texture, 0, y, Color.WHITE);
+
+                    y += texture.height;
+                }
+
                 if (node.ParentNode.Name == "p")
                 {
                     if (node.InnerText != "\n")
@@ -61,7 +98,7 @@ namespace Browser
                 }
                 else if (node.ParentNode.Name == "a")
                 {
-                    if (Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), new Rectangle(0, y, Raylib.MeasureText(node.ParentNode.Name + " -> " + node.InnerText.Replace("\n", " "), 20), 20)))
+                    if (Raylib.CheckCollisionPointRec(Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), camera), new Rectangle(0, y, Raylib.MeasureText(node.ParentNode.Name + " -> " + node.InnerText.Replace("\n", " "), 20), 20)))
                     {
                         Raylib.DrawText(node.ParentNode.Name + " -> " + node.InnerText.Replace("\n", " "), 0, y, 20, Color.SKYBLUE);
                         y += 20;
@@ -93,6 +130,12 @@ namespace Browser
             Raylib.InitWindow(800, 600, "Browser");
             Raylib.SetTargetFPS(60);
 
+            camera = new Camera2D();
+            camera.target = new Vector2(Raylib.GetScreenWidth() / 2, Raylib.GetScreenHeight() / 2);
+            camera.offset = new Vector2(Raylib.GetScreenWidth() / 2, Raylib.GetScreenHeight() / 2);
+            camera.rotation = 0.0f;
+            camera.zoom = 1.0f;
+
             var engine = new Engine();
             engine.SetValue("log", new Action<object>(Console.WriteLine));
 
@@ -112,8 +155,20 @@ namespace Browser
                     }
                 }
 
+                if (Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_CONTROL) && Raylib.GetMouseWheelMove() != 0)
+                {
+                    camera.zoom += Raylib.GetMouseWheelMove() / 10.0f;
+                }
+
+                if (Raylib.GetMouseWheelMove() != 0)
+                {
+                    camera.target = new Vector2(camera.target.X, camera.target.Y + Raylib.GetMouseWheelMove() * -20);
+                }
+
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.WHITE);
+
+                Raylib.BeginMode2D(camera);
 
                 if (currentPage !=  null)
                 {
@@ -123,6 +178,8 @@ namespace Browser
 
                     Render(body);
                 }
+
+                Raylib.EndMode2D();
 
                 Raylib.EndDrawing();
             }
@@ -147,6 +204,34 @@ namespace Browser
 
                 return null;
             }
+        }
+
+        static unsafe Image LoadImageFromMemory(string fileType, byte[] fileData)
+        {
+            using var fileTypeNative = fileType.ToUTF8Buffer();
+
+            byte* fileDataNative = (byte*)Raylib.MemAlloc(fileData.Length);
+            Marshal.Copy(fileData, 0, (IntPtr)fileDataNative, fileData.Length);
+
+            Image image = Raylib.LoadImageFromMemory(fileTypeNative.AsPointer(), fileDataNative, fileData.Length);
+
+            return image;
+        }
+
+        static async Task<Image?> RequestImage(string url)
+        {
+            Console.WriteLine("Requesting image: " + url);
+
+            var content = await http.GetByteArrayAsync(url);
+
+            if (content == null)
+            {
+                return null;
+            }
+
+            var image = LoadImageFromMemory(".png", content);
+
+            return image;
         }
 
         static async Task<HtmlDocument> RequestHtml(string url)
