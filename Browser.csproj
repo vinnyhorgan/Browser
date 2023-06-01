@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -12,5 +12,18 @@
     <PackageReference Include="Jint" Version="3.0.0-beta-2049" />
     <PackageReference Include="Raylib-cs" Version="4.5.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="assets\error.jpg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="assets\times_new_roman.ttf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy &quot;$(ProjectDir)raylib.dll&quot; &quot;$(TargetDir)runtimes\win-x64\native\&quot; /y" />
+  </Target>
 
 </Project>

@@ -54,6 +54,7 @@ namespace Browser
             history.Push(url);
 
             camera.target = new Vector2(Raylib.GetScreenWidth() / 2, Raylib.GetScreenHeight() / 2);
+            camera.offset = new Vector2(Raylib.GetScreenWidth() / 2, Raylib.GetScreenHeight() / 2);
             camera.zoom = 1.0f;
         }
 
