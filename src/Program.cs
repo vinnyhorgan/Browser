@@ -21,6 +21,9 @@ namespace Browser
         static Camera2D camera;
         static int y = 0;
 
+        static Font font;
+        static Font h1Font;
+
         static void LoadPage(string url)
         {
             if (url.StartsWith("/"))
@@ -49,6 +52,9 @@ namespace Browser
 
             currentPage = html;
             history.Push(url);
+
+            camera.target = new Vector2(Raylib.GetScreenWidth() / 2, Raylib.GetScreenHeight() / 2);
+            camera.zoom = 1.0f;
         }
 
         static void Render(HtmlNode node)
@@ -79,29 +85,52 @@ namespace Browser
 
                     var image = imageTask.Result;
 
-                    var texture = Raylib.LoadTextureFromImage(image.Value);
+                    Texture2D texture;
+
+                    if (!image.HasValue)
+                    {
+                        texture = Raylib.LoadTexture("assets/error.jpg");
+                    }
+                    else
+                    {
+                        texture = Raylib.LoadTextureFromImage(image.Value);
+                    }
 
                     images.Add(src, texture);
-
-                    Raylib.DrawTexture(texture, 0, y, Color.WHITE);
-
-                    y += texture.height;
                 }
 
-                if (node.ParentNode.Name == "p")
+                if (node.ParentNode.Name == "h1")
                 {
                     if (node.InnerText != "\n")
                     {
-                        Raylib.DrawText(node.ParentNode.Name + " -> " + node.InnerText.Replace("\n", " "), 0, y, 20, Color.BLACK);
-                        y += 20;
+                        Raylib.DrawTextEx(h1Font, node.InnerText.Replace("\n", " "), new Vector2(0, y), 42, 0, Color.BLACK);
+                        y += 40;
+                    }
+                }
+                else if (node.ParentNode.Name == "li")
+                {
+                    if (node.InnerText != "\n")
+                    {
+                        Raylib.DrawTextEx(font, node.InnerText.Replace("\n", " "), new Vector2(0, y), 22, 0, Color.BLACK);
+
+                        y += 22;
+                    }
+                }
+                else if (node.ParentNode.Name == "p")
+                {
+                    if (node.InnerText != "\n")
+                    {
+                        Raylib.DrawTextEx(font, node.InnerText.Replace("\n", " "), new Vector2(0, y), 22, 0, Color.BLACK);
+                        y += 22;
                     }
                 }
                 else if (node.ParentNode.Name == "a")
                 {
-                    if (Raylib.CheckCollisionPointRec(Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), camera), new Rectangle(0, y, Raylib.MeasureText(node.ParentNode.Name + " -> " + node.InnerText.Replace("\n", " "), 20), 20)))
+                    if (Raylib.CheckCollisionPointRec(Raylib.GetScreenToWorld2D(Raylib.GetMousePosition(), camera), new Rectangle(0, y, Raylib.MeasureText(node.InnerText.Replace("\n", " "), 22), 22)))
                     {
-                        Raylib.DrawText(node.ParentNode.Name + " -> " + node.InnerText.Replace("\n", " "), 0, y, 20, Color.SKYBLUE);
-                        y += 20;
+                        Raylib.DrawTextEx(font, node.InnerText.Replace("\n", " "), new Vector2(0, y), 22, 0, Color.SKYBLUE);
+
+                        y += 22;
 
                         if (Raylib.IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT))
                         {
@@ -110,8 +139,8 @@ namespace Browser
                     }
                     else
                     {
-                        Raylib.DrawText(node.ParentNode.Name + " -> " + node.InnerText.Replace("\n", " "), 0, y, 20, Color.BLUE);
-                        y += 20;
+                        Raylib.DrawTextEx(font, node.InnerText.Replace("\n", " "), new Vector2(0, y), 22, 0, Color.BLUE);
+                        y += 22;
                     }
                 }
             }
@@ -129,6 +158,9 @@ namespace Browser
             Raylib.SetConfigFlags(ConfigFlags.FLAG_WINDOW_RESIZABLE);
             Raylib.InitWindow(800, 600, "Browser");
             Raylib.SetTargetFPS(60);
+
+            font = Raylib.LoadFontEx("assets/times_new_roman.ttf", 22, null, 250);
+            h1Font = Raylib.LoadFontEx("assets/times_new_roman.ttf", 42, null, 250);
 
             camera = new Camera2D();
             camera.target = new Vector2(Raylib.GetScreenWidth() / 2, Raylib.GetScreenHeight() / 2);
@@ -162,7 +194,7 @@ namespace Browser
 
                 if (Raylib.GetMouseWheelMove() != 0)
                 {
-                    camera.target = new Vector2(camera.target.X, camera.target.Y + Raylib.GetMouseWheelMove() * -20);
+                    camera.target = new Vector2(camera.target.X, camera.target.Y + Raylib.GetMouseWheelMove() * -22);
                 }
 
                 Raylib.BeginDrawing();
@@ -191,10 +223,7 @@ namespace Browser
         {
             try
             {
-                var response = await http.GetAsync(url);
-                response.EnsureSuccessStatusCode();
-
-                var content = await response.Content.ReadAsStringAsync();
+                var content = await http.GetStringAsync(url);
 
                 return content;
             }
@@ -222,16 +251,20 @@ namespace Browser
         {
             Console.WriteLine("Requesting image: " + url);
 
-            var content = await http.GetByteArrayAsync(url);
-
-            if (content == null)
+            try
             {
+                var content = await http.GetByteArrayAsync(url);
+
+                var image = LoadImageFromMemory(".png", content);
+
+                return image;
+            }
+            catch (HttpRequestException e)
+            {
+                Console.WriteLine(e.Message);
+
                 return null;
             }
-
-            var image = LoadImageFromMemory(".png", content);
-
-            return image;
         }
 
         static async Task<HtmlDocument> RequestHtml(string url)
