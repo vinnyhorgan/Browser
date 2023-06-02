@@ -1,0 +1,7 @@
+﻿namespace Browser
+{
+    class Browser
+    {
+
+    }
+}

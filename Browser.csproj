@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy &quot;$(ProjectDir)raylib.dll&quot; &quot;$(TargetDir)runtimes\win-x64\native\&quot; /y" />
+    <Exec Command="xcopy &quot;$(ProjectDir)natives\win-x64\raylib.dll&quot; &quot;$(TargetDir)runtimes\win-x64\native\&quot; /y" />
   </Target>
 
 </Project>

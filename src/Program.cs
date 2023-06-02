@@ -24,16 +24,23 @@ namespace Browser
         static Font font;
         static Font h1Font;
 
-        static void LoadPage(string url)
+        static async void LoadPage(string url)
         {
-            if (url.StartsWith("/"))
+            Console.WriteLine("Loading " + url + "...");
+
+            if (url.StartsWith("/") && !url.StartsWith("//"))
             {
                 url = history.Peek() + url;
             }
 
-            if (!url.StartsWith("http://") && !url.StartsWith("https://") && !url.StartsWith("/"))
+            if (!url.StartsWith("http://") && !url.StartsWith("https://") && !url.StartsWith("//"))
             {
-                url = history.Peek() + "/" + url;
+                url = "http://" + url;
+            }
+
+            if (url.StartsWith("//"))
+            {
+                url = "http:" + url;
             }
 
             Console.WriteLine("Loading " + url + "...");
@@ -42,9 +49,28 @@ namespace Browser
 
             Raylib.SetWindowTitle("Browser - Loading");
 
-            while (!htmlTask.IsCompleted) { }
+            var timeout = Task.Delay(5000); // timeout after 5 seconds
+
+            while (!htmlTask.IsCompleted && !timeout.IsCompleted)
+            {
+
+            }
+
+            if (timeout.IsCompleted)
+            {
+                Console.WriteLine("Failed to load " + url + "!");
+
+                return;
+            }
 
             var html = htmlTask.Result;
+
+            if (html == null)
+            {
+                Console.WriteLine("Failed to load " + url + "!");
+
+                return;
+            }
 
             var title = html.DocumentNode.SelectSingleNode("//title").InnerText;
 
@@ -71,6 +97,16 @@ namespace Browser
                         src = history.Peek() + "/" + src;
                     }
 
+                    if (src.StartsWith("/") && !src.StartsWith("//"))
+                    {
+                        src = history.Peek() + src;
+                    }
+
+                    if (src.StartsWith("//"))
+                    {
+                        src = "http:" + src;
+                    }
+
                     if (images.ContainsKey(src))
                     {
                         Raylib.DrawTexture(images[src], 0, y, Color.WHITE);
@@ -91,6 +127,8 @@ namespace Browser
                     if (!image.HasValue)
                     {
                         texture = Raylib.LoadTexture("assets/error.jpg");
+
+                        Console.WriteLine("Failed to load image " + node.Attributes["src"].Value + "!");
                     }
                     else
                     {
@@ -174,7 +212,7 @@ namespace Browser
 
             engine.Execute("log('Hello World!');");
 
-            LoadPage("http://www.toad.com");
+            LoadPage("https://motherfuckingwebsite.com");
 
             while (!Raylib.WindowShouldClose())
             {
@@ -191,11 +229,21 @@ namespace Browser
                 if (Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_CONTROL) && Raylib.GetMouseWheelMove() != 0)
                 {
                     camera.zoom += Raylib.GetMouseWheelMove() / 10.0f;
+
+                    if (camera.zoom < 0.1f)
+                    {
+                        camera.zoom = 0.1f;
+                    }
+
+                    if (camera.zoom > 3.0f)
+                    {
+                        camera.zoom = 3.0f;
+                    }
                 }
 
                 if (Raylib.GetMouseWheelMove() != 0)
                 {
-                    camera.target = new Vector2(camera.target.X, camera.target.Y + Raylib.GetMouseWheelMove() * -22);
+                    camera.target = new Vector2(camera.target.X, camera.target.Y + Raylib.GetMouseWheelMove() * -50);
                 }
 
                 Raylib.BeginDrawing();
